@@ -37,7 +37,7 @@ inline std::string toString(ConstructionMethod method) {
     }
 }
 
-py::dict construct(const std::unique_ptr<qc::QuantumComputation>& qc, const ConstructionMethod& method = ConstructionMethod::Recursive, bool storeDD = false, bool storeMatrix = false) {
+py::dict construct(const std::unique_ptr<qc::QuantumComputation>& qc, const ConstructionMethod& method = ConstructionMethod::Recursive, bool storeDD = false, bool storeMatrix = false, bool reduceT = false) {
     // carry out actual computation
     auto         dd                = std::make_unique<dd::Package<>>(qc->getNqubits());
     auto         startConstruction = std::chrono::high_resolution_clock::now();
@@ -45,7 +45,7 @@ py::dict construct(const std::unique_ptr<qc::QuantumComputation>& qc, const Cons
     if (method == ConstructionMethod::Sequential) {
         e = buildFunctionality(qc.get(), dd);
     } else if (method == ConstructionMethod::Recursive) {
-        e = buildFunctionalityRecursive(qc.get(), dd);
+        e = buildFunctionalityRecursive(qc.get(), dd, reduceT);
     }
     auto endConstruction      = std::chrono::high_resolution_clock::now();
     auto constructionDuration = std::chrono::duration<float>(endConstruction - startConstruction);
@@ -90,7 +90,7 @@ py::dict construct(const std::unique_ptr<qc::QuantumComputation>& qc, const Cons
     return results;
 }
 
-py::dict constructCircuit(const py::object& circ, const ConstructionMethod& method = ConstructionMethod::Recursive, bool storeDD = false, bool storeMatrix = false) {
+py::dict constructCircuit(const py::object& circ, const ConstructionMethod& method = ConstructionMethod::Recursive, bool storeDD = false, bool storeMatrix = false, bool reduceT = false) {
     auto qc = std::make_unique<qc::QuantumComputation>();
     try {
         if (py::isinstance<py::str>(circ)) {
@@ -110,7 +110,7 @@ py::dict constructCircuit(const py::object& circ, const ConstructionMethod& meth
         ss << "Could not import circuit: " << e.what();
         return py::dict("error"_a = ss.str());
     }
-    return construct(qc, method, storeDD, storeMatrix);
+    return construct(qc, method, storeDD, storeMatrix, reduceT);
 }
 
 py::dict constructGrover(dd::QubitCount nqubits, unsigned int seed = 0, const ConstructionMethod& method = ConstructionMethod::Recursive, bool storeDD = false, bool storeMatrix = false) {
@@ -164,7 +164,8 @@ PYBIND11_MODULE(pyqfr, m) {
           "circ"_a,
           "method"_a       = ConstructionMethod::Recursive,
           "store_dd"_a     = false,
-          "store_matrix"_a = false);
+          "store_matrix"_a = false,
+          "reduceT"_a = false);
     m.def("construct_grover", &constructGrover, "construct a functional representation for Grover's algorithm",
           "nqubits"_a      = 2,
           "seed"_a         = 0,
