@@ -38,7 +38,7 @@ namespace dd {
     }
 
     template<class Config>
-    MatrixDD buildFunctionalityRecursive(const QuantumComputation* qc, std::unique_ptr<dd::Package<Config>>& dd) {
+    MatrixDD buildFunctionalityRecursive(const QuantumComputation* qc, std::unique_ptr<dd::Package<Config>>& dd, const bool reduceT) {
         if (qc->getNqubits() == 0U) {
             return MatrixDD::one;
         }
@@ -66,6 +66,10 @@ namespace dd {
         e = dd->reduceAncillae(e, qc->ancillary);
         e = dd->reduceGarbage(e, qc->garbage);
 
+        // further reduce the decision diagram if necassary
+        if (reduceT){
+            e = dd->reduceTranspose(e);
+        }
         return e;
     }
 
@@ -216,7 +220,7 @@ namespace dd {
     }
 
     template MatrixDD buildFunctionality(const qc::QuantumComputation* qc, std::unique_ptr<dd::Package<dd::DDPackageConfig>>& dd);
-    template MatrixDD buildFunctionalityRecursive(const qc::QuantumComputation* qc, std::unique_ptr<dd::Package<dd::DDPackageConfig>>& dd);
+    template MatrixDD buildFunctionalityRecursive(const qc::QuantumComputation* qc, std::unique_ptr<dd::Package<dd::DDPackageConfig>>& dd, const bool reduceT = false);
     template bool     buildFunctionalityRecursive(const qc::QuantumComputation* qc, const std::size_t depth, const std::size_t opIdx, std::stack<MatrixDD>& s, qc::Permutation& permutation, std::unique_ptr<dd::Package<dd::DDPackageConfig>>& dd);
     template MatrixDD buildFunctionality(const qc::Grover* qc, std::unique_ptr<dd::Package<dd::DDPackageConfig>>& dd);
     template MatrixDD buildFunctionalityRecursive(const qc::Grover* qc, std::unique_ptr<dd::Package<dd::DDPackageConfig>>& dd);
