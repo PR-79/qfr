@@ -25,4 +25,5 @@ test/*.csv
 test/*.txt
 test/*.qasm
 test/dd_reduction
+test/evaluation
 .vscode/
