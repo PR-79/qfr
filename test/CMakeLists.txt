@@ -31,4 +31,6 @@ package_add_test(${PROJECT_NAME}_test_zx ${PROJECT_NAME}_zx unittests/test_zx_fu
 
 package_add_test(${PROJECT_NAME}_test_ecc ${PROJECT_NAME}_ecc unittests/test_ecc_functionality.cpp)
 
+package_add_test(${PROJECT_NAME}_test_dev ${PROJECT_NAME}_dd unittests/test_dd_operator_reduction.cpp)
+
 target_link_libraries(${PROJECT_NAME}_test_ecc PRIVATE ${PROJECT_NAME}_dd)

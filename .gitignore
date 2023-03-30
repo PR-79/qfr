@@ -20,3 +20,9 @@ var/
 .installed.cfg
 *.egg
 venv/
+
+test/*.csv
+test/*.txt
+test/*.qasm
+test/dd_reduction
+.vscode/
