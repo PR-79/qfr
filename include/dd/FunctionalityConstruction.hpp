@@ -17,7 +17,7 @@ namespace dd {
     MatrixDD buildFunctionality(const QuantumComputation* qc, std::unique_ptr<dd::Package<Config>>& dd);
 
     template<class Config>
-    MatrixDD buildFunctionalityRecursive(const QuantumComputation* qc, std::unique_ptr<dd::Package<Config>>& dd, const bool reduceT = false);
+    MatrixDD buildFunctionalityRecursive(const QuantumComputation* qc, std::unique_ptr<dd::Package<Config>>& dd, const int reductionType = 0);
 
     template<class Config>
     bool buildFunctionalityRecursive(const QuantumComputation* qc, std::size_t depth, std::size_t opIdx, std::stack<MatrixDD>& s, Permutation& permutation, std::unique_ptr<dd::Package<Config>>& dd);
