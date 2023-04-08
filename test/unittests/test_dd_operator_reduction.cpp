@@ -17,16 +17,17 @@ TEST(DDReduceOperator, DDReduceTranspose_Test1) {
 
     dd::mEdge regular_dd = ddo->makeDDFromMatrix(inputMatrix);
     std::cout << "-----------------------------" << std::endl;
-    std::cout << "redconstructed matrix of regular dd:" << std::endl;
-    ddo->printMatrix(regular_dd);
-    std::cout << std::endl;
+    // std::cout << "redconstructed matrix of regular dd:" << std::endl;
+    // ddo->printMatrix(regular_dd);
+    // std::cout << std::endl;
     auto regular_matrix = ddo->getMatrix(regular_dd);
     EXPECT_EQ(inputMatrix, regular_matrix);
 
     const auto reduced_dd = ddo->reduceTranspose(regular_dd);
-    std::cout << "redconstructed matrix of reduced dd:" << std::endl;
-    ddo->printMatrix(reduced_dd);
-    std::cout << std::endl;
+    // TODO: extend other print mat function in package class
+    // std::cout << "redconstructed matrix of reduced dd:" << std::endl;
+    // ddo->printMatrix(reduced_dd);
+    // std::cout << std::endl;
     auto reduced_dd_matrix = ddo->getMatrix(reduced_dd);
     EXPECT_EQ(inputMatrix, reduced_dd_matrix);
 
