@@ -2,6 +2,7 @@
 #include "QuantumComputation.hpp"
 #include "dd/FunctionalityConstruction.hpp"
 #include "dd/Simulation.hpp"
+#include "dd/Export.hpp"
 
 #include "gtest/gtest.h"
 
