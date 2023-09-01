@@ -902,7 +902,25 @@ static void serializeMatrix(const mEdge& basic, std::int64_t& idx,
         if (!edge.w.approximatelyZero()) {
           const std::int64_t edgeIdx =
               edge.isTerminal() ? -1 : nodeIndex[edge.p];
-          os << edgeIdx << " " << edge.w.toString(false, 16);
+
+          auto ddp= std::make_unique<dd::Package<>>(1);
+          auto oc = ddp->getOperationCode(edge);
+          if (oc){
+            dd::fp tol = 1e-10;
+            auto re = RealNumber::val(edge.w.r) - ddp->operation_shift[oc];
+            auto im = RealNumber::val(edge.w.i);
+            os << edgeIdx << " ";
+            if (std::abs(re) > tol)
+              os<< re;
+            if (std::abs(im) > tol){
+              if (im>0)
+                os<<"+";
+              os<<im<<"i";
+            }
+            os << ddp->operation_symbol[oc];
+          }
+          else
+            os << edgeIdx << " " << edge.w.toString(false, 16);
         }
         os << ")";
       }

@@ -52,6 +52,14 @@ public:
   static constexpr std::size_t MAX_POSSIBLE_QUBITS =
       static_cast<std::size_t>(std::numeric_limits<Qubit>::max()) + 1U;
   static constexpr std::size_t DEFAULT_QUBITS = 32U;
+
+  // weight level shift for marking transposition in dd
+  static constexpr fp transpose_weight_shift = 4.0;
+  static constexpr fp ctranspose_weight_shift = 8.0;
+  static constexpr int num_operations = 3;
+  static constexpr fp operation_shift[4] = {0, 4.0, 8.0, 16.0};
+  std::string operation_symbol = " TCX";
+
   explicit Package(std::size_t nq = DEFAULT_QUBITS) : nqubits(nq) {
     resize(nq);
   };
@@ -1167,9 +1175,9 @@ private:
       assert(colEnd - colStart == 2);
       const auto w0 = cn.getCached(matrix[rowStart][colStart]);
       const auto e0 = mEdge{mNode::getTerminal(), w0};
-      const auto w1 = cn.getCached(matrix[rowStart + 1][colStart]);
+      const auto w1 = cn.getCached(matrix[rowStart][colStart + 1]);
       const auto e1 = mEdge{mNode::getTerminal(), w1};
-      const auto w2 = cn.getCached(matrix[rowStart][colStart + 1]);
+      const auto w2 = cn.getCached(matrix[rowStart + 1][colStart]);
       const auto e2 = mEdge{mNode::getTerminal(), w2};
       const auto w3 = cn.getCached(matrix[rowStart + 1][colStart + 1]);
       const auto e3 = mEdge{mNode::getTerminal(), w3};
@@ -2582,6 +2590,122 @@ public:
     return f;
   }
 
+  mEdge applyXGate(const mEdge& a){
+    if (a.isTerminal())
+      return a;
+
+    std::array<mEdge, NEDGE> e{};
+    e[0] = a.p->e[2];
+    e[1] = a.p->e[3];
+    e[2] = a.p->e[0];
+    e[3] = a.p->e[1];
+
+    // create new top node
+    mEdge r = makeDDNode(a.p->v, e);
+    // adjust top weight
+    auto c = cn.getTemporary();
+    ComplexNumbers::mul(c, r.w, a.w);
+    r.w = cn.lookup(c);
+
+    return r;
+  }
+
+  mEdge applyOperation(const mEdge& e, unsigned int oc){
+    switch (oc)
+    {
+      case 1:
+        return transpose(e);
+      case 2:
+        return conjugateTranspose(e);
+      case 3:
+        return applyXGate(e);
+      case 0:
+        return e;
+    }
+  }
+
+  static bool hasOperation(mEdge& e, unsigned int operation_code){
+    // TODO: find defined tolerance. current value copied from an earlier function in package.hpp
+    dd::fp tol = 1e-10;
+    auto v = RealNumber::val(e.w.r);
+    if (v >= operation_shift[operation_code]-1.0-tol && v <= operation_shift[operation_code]+1.0+tol)
+      return true;
+    return false;
+  }
+
+  static unsigned int getOperationCode(mEdge& e){
+    dd::fp tol = 1e-10;
+    auto v = RealNumber::val(e.w.r);
+    for (int i=1; i<num_operations+1; i++){
+      if (v >= operation_shift[i]-1.0-tol && v <= operation_shift[i]+1.0+tol)
+        return i;
+    }
+    return 0;
+  }        
+
+  mEdge shiftN2O(mEdge& e, unsigned int oc){
+    e.w = cn.lookup(operation_shift[oc]+RealNumber::val(e.w.r), RealNumber::val(e.w.i));
+    return e;
+  }
+
+  mEdge shiftO2N(mEdge& e, unsigned int oc){
+    e.w = cn.lookup(-operation_shift[oc]+RealNumber::val(e.w.r), RealNumber::val(e.w.i));
+    return e;
+  }
+
+  mEdge reduceEdgeOperation(mEdge& e, unsigned int oc){
+    mEdge r = reduceEdgeOperationRecursive(e, oc);
+    garbageCollect();
+    return r;
+  }
+
+  mEdge reduceEdgeOperationRecursive(mEdge& e, unsigned int oc){
+    if (e.isTerminal() || e.p->flags == (std::uint8_t) 64)
+      return e;
+    auto r = e;
+    for (auto i = 0U; i < 4; i++) {
+      auto c = r.p->e[i];
+      if (c.isTerminal())
+        continue;
+      auto prevNodeCount = mUniqueTable.getStats().entryCount;
+      auto z = applyOperation(c, oc);
+      if (mUniqueTable.nodesAreEqual(z.p, c.p)){
+        continue;
+      }
+      auto t = mUniqueTable.lookup(z);
+      if (mUniqueTable.getStats().entryCount == prevNodeCount){
+        // only link transpose if transpose is more common (fewer T edges in final diagram)
+        if (c.p->ref < t.p->ref){
+          auto temp = c;
+          c.p = t.p;
+          c = shiftN2O(c, oc);
+          if (temp.p->ref)
+            decRef(temp);
+          incRef(t);
+        }
+        else if (c.p->ref == t.p->ref){
+          // keep node with lower id
+          if (c.p->v >= t.p->v){
+            auto temp = c;
+            c.p = t.p;
+            c = shiftN2O(c, oc);
+            if (temp.p->ref)
+              decRef(temp);
+            incRef(t);
+          }
+        }
+        r.p->e[i] = c;
+      }
+    }
+    r.p->e[0] = reduceEdgeOperationRecursive(r.p->e[0], oc);
+    r.p->e[1] = reduceEdgeOperationRecursive(r.p->e[1], oc);
+    r.p->e[2] = reduceEdgeOperationRecursive(r.p->e[2], oc);
+    r.p->e[3] = reduceEdgeOperationRecursive(r.p->e[3], oc);
+    r.p->flags = (std::uint8_t) 64;
+    return r;
+  }
+
+
 private:
   mEdge reduceAncillaeRecursion(mEdge& e, const std::vector<bool>& ancillary,
                                 const Qubit lowerbound,
@@ -2990,33 +3114,43 @@ public:
   }
   void getMatrix(const mEdge& e, const Complex& amp, const std::size_t i,
                  const std::size_t j, CMat& mat) {
-    // calculate new accumulated amplitude
-    auto c = cn.mulCached(e.w, amp);
+    auto r = e;
+    bool flag = false;
 
+    auto oc = getOperationCode(r);
+    if (oc){
+      r = applyOperation(shiftO2N(r, oc), oc);
+      flag = true;
+    }
+    // calculate new accumulated amplitude
+    auto c = cn.mulCached(r.w, amp);
     // base case
-    if (e.isTerminal()) {
+    if (r.isTerminal()) {
       mat.at(i).at(j) = {RealNumber::val(c.r), RealNumber::val(c.i)};
       cn.returnToCache(c);
       return;
     }
 
-    const std::size_t x = i | (1ULL << e.p->v);
-    const std::size_t y = j | (1ULL << e.p->v);
+    const std::size_t x = i | (1ULL << r.p->v);
+    const std::size_t y = j | (1ULL << r.p->v); 
 
     // recursive case
-    if (!e.p->e[0].w.approximatelyZero()) {
-      getMatrix(e.p->e[0], c, i, j, mat);
+    if (!r.p->e[0].w.approximatelyZero()){
+      getMatrix(r.p->e[0], c, i, j, mat);
     }
-    if (!e.p->e[1].w.approximatelyZero()) {
-      getMatrix(e.p->e[1], c, i, y, mat);
+    if (!r.p->e[1].w.approximatelyZero()){
+      getMatrix(r.p->e[1], c, i, y, mat);
     }
-    if (!e.p->e[2].w.approximatelyZero()) {
-      getMatrix(e.p->e[2], c, x, j, mat);
+    if (!r.p->e[2].w.approximatelyZero()){
+      getMatrix(r.p->e[2], c, x, j, mat);
     }
-    if (!e.p->e[3].w.approximatelyZero()) {
-      getMatrix(e.p->e[3], c, x, y, mat);
+    if (!r.p->e[3].w.approximatelyZero()){
+      getMatrix(r.p->e[3], c, x, y, mat);
     }
     cn.returnToCache(c);
+    if (flag){
+      r = applyOperation(shiftN2O(r, oc), oc);
+    }
   }
 
   CMat getDensityMatrix(dEdge& e) {

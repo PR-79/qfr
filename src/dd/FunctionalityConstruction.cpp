@@ -35,7 +35,8 @@ MatrixDD buildFunctionality(const QuantumComputation* qc,
 
 template <class Config>
 MatrixDD buildFunctionalityRecursive(const QuantumComputation* qc,
-                                     std::unique_ptr<Package<Config>>& dd) {
+                                     std::unique_ptr<Package<Config>>& dd,
+                                     const int reductionType) {
   if (qc->getNqubits() == 0U) {
     return MatrixDD::one;
   }
@@ -62,6 +63,11 @@ MatrixDD buildFunctionalityRecursive(const QuantumComputation* qc,
   changePermutation(e, permutation, qc->outputPermutation, dd);
   e = dd->reduceAncillae(e, qc->ancillary);
   e = dd->reduceGarbage(e, qc->garbage);
+
+  // further reduce the decision diagram if necassary
+  if (reductionType){
+    e = dd->reduceEdgeOperation(e, reductionType);
+  }
 
   return e;
 }
@@ -230,7 +236,8 @@ buildFunctionality(const qc::QuantumComputation* qc,
                    std::unique_ptr<Package<DDPackageConfig>>& dd);
 template MatrixDD
 buildFunctionalityRecursive(const qc::QuantumComputation* qc,
-                            std::unique_ptr<Package<DDPackageConfig>>& dd);
+                            std::unique_ptr<Package<DDPackageConfig>>& dd,
+                            const int reductionType = false);
 template bool
 buildFunctionalityRecursive(const qc::QuantumComputation* qc,
                             const std::size_t depth, const std::size_t opIdx,
