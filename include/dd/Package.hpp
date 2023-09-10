@@ -2636,7 +2636,7 @@ public:
   static unsigned int getOperationCode(mEdge& e){
     dd::fp tol = 1e-10;
     auto v = RealNumber::val(e.w.r);
-    for (int i=1; i<num_operations+1; i++){
+    for (unsigned int i=1; i<num_operations+1; i++){
       if (v >= operation_shift[i]-1.0-tol && v <= operation_shift[i]+1.0+tol)
         return i;
     }
@@ -2660,7 +2660,7 @@ public:
   }
 
   mEdge reduceEdgeOperationRecursive(mEdge& e, unsigned int oc){
-    if (e.isTerminal() || e.p->flags == (std::uint8_t) 64)
+    if (e.isTerminal() || e.p->flags == static_cast<std::uint8_t>(64))
       return e;
     auto r = e;
     for (auto i = 0U; i < 4; i++) {
@@ -2701,7 +2701,7 @@ public:
     r.p->e[1] = reduceEdgeOperationRecursive(r.p->e[1], oc);
     r.p->e[2] = reduceEdgeOperationRecursive(r.p->e[2], oc);
     r.p->e[3] = reduceEdgeOperationRecursive(r.p->e[3], oc);
-    r.p->flags = (std::uint8_t) 64;
+    r.p->flags = static_cast<std::uint8_t>(64);
     return r;
   }
 

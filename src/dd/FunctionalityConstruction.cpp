@@ -66,7 +66,7 @@ MatrixDD buildFunctionalityRecursive(const QuantumComputation* qc,
 
   // further reduce the decision diagram if necassary
   if (reductionType){
-    e = dd->reduceEdgeOperation(e, reductionType);
+    e = dd->reduceEdgeOperation(e, static_cast<unsigned int>(reductionType));
   }
 
   return e;
