@@ -2500,8 +2500,17 @@ public:
 
 private:
   template <class Edge>
-  std::size_t nodeCount(const Edge& e,
+  std::size_t nodeCount(Edge& e,
                         std::unordered_set<decltype(e.p)>& v) const {
+    // check the type of c and see if it is an mEdge or vEdge
+    
+    // auto oc = getOperationCode(e);
+    // bool flag = false;
+    // setRegularPointer(e);
+    // if (oc){
+    //   e = shiftO2N(e, oc);
+    //   flag = true;
+    // }
     v.insert(e.p);
     std::size_t sum = 1U;
     if (!e.isTerminal()) {
@@ -2511,6 +2520,9 @@ private:
         }
       }
     }
+    // if (flag){
+    //   e = shiftN2O(e, oc);
+    // }
     return sum;
   }
 
@@ -2590,6 +2602,23 @@ public:
     return f;
   }
 
+  static constexpr std::size_t LSB = static_cast<std::uintptr_t>(1U);
+  static constexpr std::size_t MSB = static_cast<std::uintptr_t>(~(~0ull >> 1));
+
+  // using mEdge = Edge<mNode>;
+
+  static void setTransposedPointer(mEdge& e){
+    e.p = reinterpret_cast<mNode*>(reinterpret_cast<std::uintptr_t>(e.p) | LSB);
+  }
+
+  static void setRegularPointer(mEdge& e){
+    e.p = reinterpret_cast<mNode*>(reinterpret_cast<std::uintptr_t>(e.p) & ~LSB);
+  }
+
+  static bool isTransposedPointer(const mEdge& e){
+    return (reinterpret_cast<std::uintptr_t>(e.p) & LSB) != 0U;
+  }
+
   mEdge applyXGate(const mEdge& a){
     if (a.isTerminal())
       return a;
@@ -2626,6 +2655,9 @@ public:
 
   static bool hasOperation(mEdge& e, unsigned int operation_code){
     // TODO: find defined tolerance. current value copied from an earlier function in package.hpp
+    if (operation_code == 1){
+      return isTransposedPointer(e);
+    }
     dd::fp tol = 1e-10;
     auto v = RealNumber::val(e.w.r);
     if (v >= operation_shift[operation_code]-1.0-tol && v <= operation_shift[operation_code]+1.0+tol)
@@ -2634,6 +2666,8 @@ public:
   }
 
   static unsigned int getOperationCode(mEdge& e){
+    if (isTransposedPointer(e))
+      return 1;
     dd::fp tol = 1e-10;
     auto v = RealNumber::val(e.w.r);
     for (unsigned int i=1; i<num_operations+1; i++){
@@ -2644,11 +2678,19 @@ public:
   }        
 
   mEdge shiftN2O(mEdge& e, unsigned int oc){
+    if (oc == 1){
+      setTransposedPointer(e);
+      return e;
+    }
     e.w = cn.lookup(operation_shift[oc]+RealNumber::val(e.w.r), RealNumber::val(e.w.i));
     return e;
   }
 
   mEdge shiftO2N(mEdge& e, unsigned int oc){
+    if (oc == 1){
+      setRegularPointer(e);
+      return e;
+    }
     e.w = cn.lookup(-operation_shift[oc]+RealNumber::val(e.w.r), RealNumber::val(e.w.i));
     return e;
   }
@@ -2662,7 +2704,12 @@ public:
   mEdge reduceEdgeOperationRecursive(mEdge& e, unsigned int oc){
     if (e.isTerminal() || e.p->flags == static_cast<std::uint8_t>(64))
       return e;
+    bool tflag = false;
     auto r = e;
+    if (isTransposedPointer(r)){
+      setRegularPointer(r);
+      tflag = true;
+    }
     for (auto i = 0U; i < 4; i++) {
       auto c = r.p->e[i];
       if (c.isTerminal())
@@ -2702,6 +2749,8 @@ public:
     r.p->e[2] = reduceEdgeOperationRecursive(r.p->e[2], oc);
     r.p->e[3] = reduceEdgeOperationRecursive(r.p->e[3], oc);
     r.p->flags = static_cast<std::uint8_t>(64);
+    if (tflag)
+      setTransposedPointer(r);
     return r;
   }
 
@@ -3149,7 +3198,9 @@ public:
     }
     cn.returnToCache(c);
     if (flag){
-      r = applyOperation(shiftN2O(r, oc), oc);
+      r = applyOperation(r, oc);
+      // r = shiftN2O(r, oc);
+      setRegularPointer(r);
     }
   }
 
